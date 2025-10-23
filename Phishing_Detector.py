@@ -101,7 +101,7 @@ class EmailPhishingScanner:
         issues = []
         try:
             ipaddress.ip_address(domain.split(':')[0])
-            score += 25
+            score += 20
             issues.append(f'IMPORTANT: {domain} Uses IP address instead of domain name')
         except ValueError:
             pass
