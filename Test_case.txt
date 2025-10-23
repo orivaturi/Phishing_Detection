@@ -1,0 +1,19 @@
+From: security-team@paypa1-verification.tk
+To: user@company.com
+Subject: URGENT! Account Suspended - Immediate Action Required
+
+Dear Customer,
+
+Your PayPal account has been SUSPENDED due to suspicious activity detected on your account.
+
+To verify your identity and restore access, you must log in immediately:
+http://192.168.1.100/paypal-secure-login/verify-account
+
+If you do not confirm your payment information within 24 hours, your account will be permanently locked.
+
+Please click here now: https://phishing-site.click/urgent-verify
+
+For security reasons, please contact our security team at: noreply-admin@paypa1-verification.tk
+
+Best regards,
+PayPal Security Alert Team
