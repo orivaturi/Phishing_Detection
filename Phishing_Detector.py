@@ -1,4 +1,3 @@
-import re
 import sys
 import ipaddress
 import validators
@@ -7,9 +6,14 @@ import requests
 from urllib.parse import urlparse
 from typing import Dict, List, Tuple
 
+
+
 class EmailPhishingScanner:
     def __init__(self):
-        self.SuspectedKeywords = {
+        self.popular_domains = self.load_popular_domains()
+
+
+        self.suspected_keywords = {
             3: ['urgent', 'now', 'immediately', 'immediate',
                 'expired', 'expiring', 'running', 'running out',
                 'verify', 'verifying', 'verified', 'verification'],
@@ -19,10 +23,7 @@ class EmailPhishingScanner:
         }
 
 
-        self.popular_domains = self.load_popular_domains()
-
-
-        self.LegitimateTLDS = [
+        self.legitimate_TLDS = [
             '.com', '.co.il', '.org', '.io', '.net', '.edu', '.gov.il'
         ]
 
@@ -33,7 +34,6 @@ class EmailPhishingScanner:
 
             if response.status_code == 200:
                 domains = set(response.text.strip().split('\n'))
-                print(f'Total possible domains: {len(domains)}')
                 return domains
             else:
                 print("No popular domains found, Using local domains list")
@@ -48,7 +48,7 @@ class EmailPhishingScanner:
             'upwind.io', 'google.com', 'microsoft.com', 'apple.com', 'company.com',
             'github.com', 'facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com',
             'paypal.com', 'dhl.com', 'amazon.com'
-            }
+        }
 
     def extract_urls(self, text: str) -> List[str]:
         words = text.split()
@@ -86,15 +86,15 @@ class EmailPhishingScanner:
 
     def check_keywords(self, text: str) -> Tuple[List, int]:
         security_score = 0
-        keywordsFound = []
+        keywords_found = []
 
-        for score, keywords in self.SuspectedKeywords.items():
+        for score, keywords in self.suspected_keywords.items():
             for keyword in keywords:
                 if keyword in text:
                     count = text.count(keyword)
                     security_score += score*count
-                    keywordsFound.append(f'{keyword} appears {count} times')
-        return keywordsFound, security_score
+                    keywords_found.append(f'{keyword} appears {count} times')
+        return keywords_found, security_score
 
     def domain_check (self, domain:str) -> Tuple[int , list[str]]:
         score = 0
@@ -114,7 +114,7 @@ class EmailPhishingScanner:
             issues.append(f'Unknown domain: {main_domain}')
 
 
-        if f".{extracted.suffix}" not in self.LegitimateTLDS:
+        if f".{extracted.suffix}" not in self.legitimate_TLDS:
             score += 4
             issues.append(f'Domain ends with .{extracted.suffix} - Not Legitimate TLD')
 
@@ -123,7 +123,6 @@ class EmailPhishingScanner:
             issues.append('More than 3 subdomains, might be phishing')
 
         return score, issues
-
 
 
     def check_urls(self, urls: list[str]) -> Tuple[List[Dict], int]:
@@ -169,11 +168,9 @@ class EmailPhishingScanner:
 
             if '@' in email:
                 domain = email.split('@')[1].lower()
-
-
-                if re.search(r'noreply.*admin|security.*team|support.*urgent', email):
+                if self.is_suspicious_email_pattern(email):
                     score += 3
-                    issues.append('Suspicious email pattern')
+                    issues.append('Suspicious email sender pattern')
 
                 domain_score, domain_issues = self.domain_check(domain)
 
@@ -190,6 +187,19 @@ class EmailPhishingScanner:
 
         return suspected_emails, emails_score
 
+    def is_suspicious_email_pattern(self, email: str) -> bool:
+        suspicious_names = [
+            'noreply', 'no-reply', 'donotreply', 'admin', 'administrator',
+            'security', 'support', 'help', 'service', 'urgent'
+        ]
+
+        if '@' in email:
+            local_part = email.split('@')[0].lower()
+            return local_part in suspicious_names
+
+        return False
+
+
 
 def main():
     if len(sys.argv) != 2:
@@ -198,57 +208,63 @@ def main():
 
     filename = sys.argv[1]
 
-    Scanner = EmailPhishingScanner()
+    scanner = EmailPhishingScanner()
 
-    email_str = Scanner.load_email(filename)
+    email_str = scanner.load_email(filename)
 
-    urls = Scanner.extract_urls(email_str)
-    emails = Scanner.extract_emails(email_str)
+    urls = scanner.extract_urls(email_str)
+    emails = scanner.extract_emails(email_str)
 
-    keywords_found, security_score = Scanner.check_keywords(email_str)
-    suspected_urls, urls_score = Scanner.check_urls(urls)
-    suspected_emails, emails_score = Scanner.check_email(emails)
+    keywords_found, security_score = scanner.check_keywords(email_str)
+    suspected_urls, urls_score = scanner.check_urls(urls)
+    suspected_emails, emails_score = scanner.check_email(emails)
 
     total_security_score = security_score+ urls_score+ emails_score
 
 
+    print()
+    print('***** EMAIL ANALYSIS*****\n')
 
-    print('***** EMAIL ANALYSIS*****\n\n')
-
-    print(f'Received E-mail contained total of {len(urls)} URLs and {len(emails)} email addresses.')
+    print(f'User received E-mail contained total of {len(urls)} URLs and {len(emails)} email addresses.\n')
     print(f'There were {len(keywords_found)} suspicious words found.')
 
     if keywords_found:
         print(f'The following keywords were found:')
         for keyword in keywords_found:
             print(f' - {keyword}')
+        print()
 
     if suspected_urls:
         print(f'The following URLs were found:')
+        print()
         for url in suspected_urls:
             print(f' • {url["url"]}: with a score of {url["score"]}')
             for issue in url['issues']:
                 print(f' - {issue}')
-        print(f'The total score for URLs is {urls_score}')
+            print()
+        print(f'The total score for URLs is {urls_score}\n')
 
     if suspected_emails:
         print(f'The following emails were found:')
+        print()
         for email in suspected_emails:
             print(f' • {email["email"]}: with a score of {email["score"]}')
             for issue in email['issues']:
                 print(f' - {issue}')
-        print(f'The total score for emails is {emails_score}')
+            print()
+        print(f'The total score for emails is {emails_score}\n')
 
+    print()
     print(f'TOTAL SECURITY SCORE: {total_security_score}')
 
     if total_security_score >= 20:
-        print("HIGH RISK: Contact Security teams, Email is suspected as phishing!")
+        print('HIGH RISK: Contact Security teams, Email is suspected as phishing!\n')
     elif total_security_score >= 10:
-        print('MEDIUM RISK: Refer the Email with extra caution.')
+        print('MEDIUM RISK: Refer the Email with extra caution.\n')
     elif total_security_score > 0:
-        print('LOW RISK: Some concerns, but probably valid.')
+        print('LOW RISK: Some concerns, but probably valid.\n')
     else:
-        print('✅ Appears to be a legitimate email.')
+        print('All good, it appears to be a legitimate email.\n')
 
 
 if __name__ == '__main__':
