@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Email Analyzer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            text-align: left;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0;
+            background: white;
+            padding: 20px;
+        }
+
+        .title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            font-weight: normal;
+        }
+
+        .text-box {
+            width: 100%;
+            height: 200px;
+            border: 2px solid #333;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .analyze-btn {
+            background-color: #e0e0e0;
+            border: 2px solid #333;
+            padding: 8px 16px;
+            margin: 15px 5px 15px 0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .analyze-btn:hover {
+            background-color: #d0d0d0;
+        }
+
+        .score-section {
+            margin: 15px 0;
+            font-size: 16px;
+        }
+
+        .risk-box {
+            border: 2px solid #333;
+            padding: 10px;
+            margin: 15px 0;
+            min-height: 60px;
+        }
+
+        .high-risk {
+            color: red;
+            font-weight: bold;
+        }
+        .medium-risk {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .low-risk {
+            color: blue;
+            font-weight: bold;
+        }
+
+        .safe-risk {
+            color: green;
+            font-weight: bold;
+        }
+
+        .section-title {
+            font-size: 16px;
+            margin: 20px 0 10px 0;
+            text-decoration: underline;
+        }
+
+        .findings-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .findings-list li {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+
+        .findings-list li:before {
+            content: "- ";
+            margin-right: 5px;
+        }
+
+        .url-section, .email-section {
+            margin: 20px 0;
+        }
+
+        .issue-list {
+            margin-left: 20px;
+            list-style: none;
+            padding: 0;
+        }
+
+        .issue-list li:before {
+            content: "° ";
+            margin-right: 5px;
+        }
+
+        .results-section {
+            margin-top: 20px;
+        }
+
+        .item-score {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .legitimate-item {
+            color: green;
+            font-style: italic;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">Insert Email to analyze:</div>
+
+        <form method="POST" enctype="multipart/form-data">
+            <textarea class="text-box" name="email_content" placeholder="Paste email content here...">{{ email_content or '' }}</textarea>
+            <br>
+
+            <div style="margin: 10px 0;">
+                <label for="file_upload" style="font-size: 14px;">Or upload a .txt file:</label>
+                <input type="file" name="email_file" id="file_upload" accept=".txt" style="margin-left: 10px;">
+            </div>
+
+            <button type="submit" name="action" value="sample" class="analyze-btn">Load Sample</button>
+            <button type="submit" name="action" value="analyze" class="analyze-btn">Analyze now</button>
+        </form>
+
+        {% if results %}
+        <div class="results-section">
+            <div class="score-section">
+                <div style="color: #333333; font-size: 18px; margin-bottom: 10px;">
+                    Watch out: The lower the score, the safer you are!
+                </div>
+                Score: {{ results.total_score }}
+            </div>
+
+            <div class="risk-box">
+                {% if results.total_score >= 20 %}
+                    <span class="high-risk">HIGH RISK: Contact Security teams, Email is suspected as phishing!</span>
+                {% elif results.total_score >= 10 %}
+                    <span class="medium-risk">MEDIUM RISK: Refer the Email with extra caution.</span>
+                {% elif results.total_score > 0 %}
+                    <span class="low-risk">LOW RISK: Some concerns, but probably valid.</span>
+                {% else %}
+                    <span class="safe-risk">All good, it appears to be a legitimate email.</span>
+                {% endif %}
+            </div>
+
+            <div class="section-title">Following suspicious words found:</div>
+            <ul class="findings-list">
+                {% for keyword in results.keywords_found %}
+                <li>{{ keyword }}</li>
+                {% endfor %}
+            </ul>
+
+            {% if results.suspected_urls %}
+            <div class="url-section">
+                <div class="section-title">Following URLs found:</div>
+                {% for url in results.suspected_urls %}
+                <div style="margin: 10px 0;">
+                    <strong>{{ url.url }}</strong>
+                    {% if url.score > 0 %}
+                        <div class="item-score">Score: {{ url.score }}</div>
+                        <ul class="issue-list">
+                            {% for issue in url.issues %}
+                            <li>issue {{ loop.index }}: {{ issue }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="legitimate-item">This URL appears to be legitimate</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if results.suspected_emails %}
+            <div class="email-section">
+                <div class="section-title">Following emails found:</div>
+                {% for email in results.suspected_emails %}
+                <div style="margin: 10px 0;">
+                    <strong>{{ email.email }}</strong>
+                    {% if email.score > 0 %}
+                        <div class="item-score">Score: {{ email.score }}</div>
+                        <ul class="issue-list">
+                            {% for issue in email.issues %}
+                            <li>issue {{ loop.index }}: {{ issue }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="legitimate-item">This email appears to be legitimate</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- הודעה למייל ללא בעיות -->
+            {% if results.suspected_emails|length == 0 and results.suspected_urls|length == 0 and results.keywords_found|length == 0 %}
+            <div class="email-section">
+                <div class="section-title">Email Analysis:</div>
+                <div style="color: green; font-weight: bold;">
+                    This email appears to be legitimate - no suspicious patterns detected.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
